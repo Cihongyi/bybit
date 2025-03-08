@@ -2,6 +2,9 @@ from pybit.unified_trading import HTTP
 import json
 import math
 
+def floor(x,digit):
+    return math.floor(x * 10**digit) / 10.0**digit
+
 
 class SpotTradeManager(object):
     
@@ -173,7 +176,8 @@ class SpotTradeManager(object):
         
     def close_position(self, trading_pair, target_qty):
         board_lot = self.trading_rule_table[trading_pair]["board_lot"]
-        qty = math.floor(target_qty, board_lot)
+        min_qty = self.trading_rule_table[trading_pair]['min_amount']
+        qty = max(floor(target_qty,board_lot),min_qty)
         
         response = self.session.place_order(
             category="spot",
@@ -187,4 +191,3 @@ class SpotTradeManager(object):
         return response
         
         
-    

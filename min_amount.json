@@ -1,0 +1,8 @@
+{
+    "BTCUSDT":
+    {
+        "min_amount":0.000011,
+        "board_lot":6,
+        "ticksize":1
+    }
+}

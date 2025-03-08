@@ -37,17 +37,17 @@ class NaiveCTAStartegy(Strategy):
         
     def calculate_ma(self,lag=0):
         ma5 = sum([float(i[4]) for i in self.data[lag:5+lag]])/5
-        ma10 = sum([float(i[4]) for i in self.data[lag:10+lag]])/10
-        return ma5, ma10
+        ma30 = sum([float(i[4]) for i in self.data[lag:30+lag]])/30
+        return ma5, ma30
     
     def output(self):
-        ma5, ma10 = self.calculate_ma()
-        ma5_t_1, ma10_t_1 = self.calculate_ma(lag=1)
-        if (ma5 > ma10) and (ma5_t_1<=ma10_t_1):
+        ma5, ma30 = self.calculate_ma()
+        ma5_t_1, ma30_t_1 = self.calculate_ma(lag=1)
+        if (ma5 > ma30) and (ma5_t_1<=ma30_t_1):
             # golden cross, 1/5 of quota, target_price is ma5 * 1.2 (almost market order)
             return {"side":"Buy", "qty":self.quota, "target_price":ma5*1.2}
         
-        elif (ma5 <= ma10) and (ma5_t_1>ma10_t_1):
+        elif (ma5 <= ma30) and (ma5_t_1>ma30_t_1):
             # death cross, close all position
             return {"side":'Sell', "qty":"all", "target_price":None}
         

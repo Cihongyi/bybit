@@ -1,9 +1,10 @@
 from pybit.unified_trading import HTTP
 import json
 import math
+from orders import Order, OrderResponse
+from utils import floor
 
-def floor(x,digit):
-    return math.floor(x * 10**digit) / 10.0**digit
+
 
 
 class SpotTradeManager(object):
@@ -38,11 +39,11 @@ class SpotTradeManager(object):
     
 
     
-    def check_pending_orders(self, order_id, trading_pair):
+    def check_pending_orders(self, order:Order):
         response = self.session.get_open_orders(
-            category="spot",
-            symbol=trading_pair,
-            orderId=order_id,
+            category=order.category,
+            symbol=order.instrument,
+            orderId=order.order_id,
             
         )
         status = response["result"]["list"][0]["orderStatus"]
@@ -50,16 +51,23 @@ class SpotTradeManager(object):
         
         return status, leaves_qty
     
-    def send_limit_order(self, trading_pair, qty, price, direction):
+    def send_order(self, order:Order, is_leverage=False):
+        
+        if is_leverage:
+            leverage_sign = 1
+        else:
+            leverage_sign = 0
+        
+        
         order_response = self.session.place_order(
-                category="spot",
-                symbol=trading_pair,
-                side=direction,
-                orderType="Limit",
-                marketUnit="quoteCoin",
-                qty=qty,
-                price=price,
-                isLeverage=0,
+                category=order.category,
+                symbol=order.instrument,
+                side=order.side,
+                orderType=order.type,
+                marketUnit="baseCoin",
+                qty=order.spot_qty,
+                price=order.price,
+                isLeverage=leverage_sign,
                 )
         return order_response
     
@@ -75,6 +83,10 @@ class SpotTradeManager(object):
         
         '''
         
+        # can use a dataclass to wrap here
+        
+        
+        
         price_limit_high, price_limit_low = self.get_price_limit(trading_pair)
         price = min(target_price, price_limit_high)
         
@@ -82,7 +94,7 @@ class SpotTradeManager(object):
         ticksize = self.trading_rule_table[trading_pair]["ticksize"]
         min_amount = self.trading_rule_table[trading_pair]["min_amount"]
         qty = max(round(usdt_qty/price,board_lot), min_amount) # need to upgrade, not to use min_amount
-        order_response = self.send_limit_order(trading_pair, qty, price, "Buy")
+        order_response = self.send_order(trading_pair, qty, price, "Buy")
         order_id = order_response['result']['orderId']
         
         
@@ -131,6 +143,8 @@ class SpotTradeManager(object):
         repeat 3 times and if not filled, cancel remaining orders
         
         '''
+        
+        # can use a dataclass to wrap here
         price_limit_high, price_limit_low = self.get_price_limit(trading_pair)
         price = max(target_price, price_limit_low)
         
@@ -138,7 +152,7 @@ class SpotTradeManager(object):
         ticksize = self.trading_rule_table[trading_pair]["ticksize"]
         min_amount = self.trading_rule_table[trading_pair]["min_amount"]
         qty = max(round(usdt_qty/price,board_lot), min_amount) # need to upgrade, not to use min_amount
-        order_response = self.send_limit_order(trading_pair, qty, price, "Sell")
+        order_response = self.send_order(trading_pair, qty, price, "Sell")
         order_id = order_response['result']['orderId']
         
         
@@ -191,3 +205,23 @@ class SpotTradeManager(object):
         return response
         
         
+if __name__ == "__main__":
+    with open("keys.json") as file:
+        apis = json.load(file)
+
+    with open("min_amount.json") as file:
+        trading_rules_table = json.load(file)
+    
+    session = HTTP(
+        testnet=False,
+        api_key=apis['API_KEY'],
+        api_secret=apis['API_SECRET']
+    )
+        
+    test_order = Order(80000, side="Buy", usdt_qty=10, exchange="Bybit", type="Limit", instrument="BTCUSDT", category="spot")
+    response = OrderResponse
+    print(test_order.create_time)
+    manager = SpotTradeManager(session)
+    response = OrderResponse()
+    response.parser(manager.send_order(test_order))
+    print(response.order_time - test_order.create_time)

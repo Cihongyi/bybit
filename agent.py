@@ -71,7 +71,6 @@ class NaiveCTAAgent(object):
         spot_manager = SpotTradeManager(self.session)
         while True:
             try:
-                self.rebalancing_quota()
                 for strategy in self.strategy_pool:
                     kline = self.get_klines(strategy.trading_pair)
                     strategy.input(data=kline)
@@ -97,7 +96,7 @@ class NaiveCTAAgent(object):
                         pass
                     
                 time.sleep(self.heart_beat)
-                
+                self.rebalancing_quota()
             except Exception as e:
                 logging.info(e)
                 time.sleep(1)

@@ -3,6 +3,8 @@ import json
 import math
 from orders import Order, OrderResponse
 from utils import floor
+from session_manager import SessionManager
+from enums import *
 
 
 
@@ -15,6 +17,9 @@ class SpotTradeManager(object):
             trading_rules_table = json.load(file)
         self.trading_rule_table = trading_rules_table
         self.session = session
+        self.order_dict = {}
+        self.session_manager = SessionManager()
+        self.session_manager.add_session(ExchangeName.BYBIT,session)
     
     def get_current_index_close_minute(self, trading_pair):
         
@@ -29,6 +34,11 @@ class SpotTradeManager(object):
         return float(response["result"]["list"][0][-1])
     
     def get_price_limit(self, trading_pair):
+        
+        '''
+        need to migrate to market class
+        '''
+        
         # under/above index 1%
         ticksize = self.trading_rule_table[trading_pair]["ticksize"]
         index_price = self.get_current_index_close_minute(trading_pair)
@@ -40,36 +50,32 @@ class SpotTradeManager(object):
 
     
     def check_pending_orders(self, order:Order):
-        response = self.session.get_open_orders(
-            category=order.category,
-            symbol=order.instrument,
-            orderId=order.order_id,
-            
-        )
-        status = response["result"]["list"][0]["orderStatus"]
-        leaves_qty = response["result"]["list"][0]["leavesQty"]
-        
-        return status, leaves_qty
-    
-    def send_order(self, order:Order, is_leverage=False):
-        
-        if is_leverage:
-            leverage_sign = 1
-        else:
-            leverage_sign = 0
-        
-        
-        order_response = self.session.place_order(
+        if order.exchange == ExchangeName.BYBIT:
+            self.session_manager.check_bybit_pending_order(
+                order_id=order.order_id,
                 category=order.category,
-                symbol=order.instrument,
-                side=order.side,
-                orderType=order.type,
-                marketUnit="baseCoin",
-                qty=order.spot_qty,
-                price=order.price,
-                isLeverage=leverage_sign,
-                )
-        return order_response
+                instrument=order.instrument
+            )
+    
+        else:
+            raise KeyError("Exchange session not exist")
+        
+        
+    def send_order(self, order:Order):
+        
+        if order.status is not OrderStatus.CREATED:
+            raise RuntimeError("Order status is wrong")
+        
+        
+        if order.exchange == ExchangeName.BYBIT:
+            self.session_manager.send_bybit_order(order.category, order.instrument, order.side, order.type, order.spot_qty, order.price, order.is_leverage)
+            order.update_status(OrderStatus.SENT)
+            
+        else:
+            order.update_status(OrderStatus.DELETED)
+            raise KeyError("Exchange session not exist")
+        
+        
     
     def place_low_frequency_buy_order(self, trading_pair, usdt_qty, target_price):
         '''
@@ -218,10 +224,8 @@ if __name__ == "__main__":
         api_secret=apis['API_SECRET']
     )
         
-    test_order = Order(80000, side="Buy", usdt_qty=10, exchange="Bybit", type="Limit", instrument="BTCUSDT", category="spot")
-    response = OrderResponse
-    print(test_order.create_time)
+    test_order = Order(80000, side=OrderSide.BUY, usdt_qty=10, exchange=ExchangeName.BYBIT, type=OrderType.LIMIT, instrument="BTCUSDT", category=OrderCategory.SPOT,is_leverage=False)
     manager = SpotTradeManager(session)
-    response = OrderResponse()
-    response.parser(manager.send_order(test_order))
-    print(response.order_time - test_order.create_time)
+    manager.send_order(test_order)
+    print(test_order.status)
+    manager.check_pending_orders(test_order)
